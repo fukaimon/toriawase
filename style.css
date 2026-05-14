@@ -52,6 +52,18 @@ h1 {
   background: #fff;
 }
 
+.meta-row--datetime {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.meta-row--datetime input {
+  flex: 0 0 auto;
+}
+
 input,
 button {
   font: inherit;
@@ -323,6 +335,11 @@ button:active {
   #meta > div {
     display: grid;
     gap: 6px;
+  }
+
+  #meta > .meta-row--datetime {
+    display: flex;
+    justify-content: flex-start;
   }
 
   #birdSearch {
