@@ -1225,6 +1225,7 @@ const list = document.getElementById("birdList");
 const output = document.getElementById("output");
 const outputDrawer = document.getElementById("outputDrawer");
 const outputDrawerHandle = document.getElementById("outputDrawerHandle");
+const closeOutputDrawerBtn = document.getElementById("closeOutputDrawerBtn");
 const birdSearchInput = document.getElementById("birdSearchInput");
 const clearBirdSearchBtn = document.getElementById("clearBirdSearchBtn");
 
@@ -1238,15 +1239,18 @@ function getPageBottomGap() {
   return scrollingElement.scrollHeight - window.innerHeight - window.scrollY;
 }
 
-function setOutputDrawerOpen(isOpen) {
+function setOutputDrawerState(state) {
   if (!outputDrawer || !outputDrawerHandle) return;
 
-  const wasOpen = outputDrawer.classList.contains("open");
+  const isOpen = state !== "closed";
+  const wasOpen = outputDrawer.classList.contains("open") || outputDrawer.classList.contains("fullscreen");
   const bottomGapBeforeOpen = getPageBottomGap();
   const newlyCoveredHeight = Math.max(0, outputDrawer.offsetHeight - outputDrawerHandle.offsetHeight);
 
-  outputDrawer.classList.toggle("open", isOpen);
+  outputDrawer.classList.toggle("open", state === "open");
+  outputDrawer.classList.toggle("fullscreen", state === "fullscreen");
   document.body.classList.toggle("output-drawer-is-open", isOpen);
+  document.body.classList.toggle("output-drawer-is-fullscreen", state === "fullscreen");
   updateOutputDrawerHeight();
   outputDrawerHandle.setAttribute("aria-expanded", String(isOpen));
 
@@ -1258,6 +1262,10 @@ function setOutputDrawerOpen(isOpen) {
   }
 }
 
+function setOutputDrawerOpen(isOpen) {
+  setOutputDrawerState(isOpen ? "open" : "closed");
+}
+
 if (outputDrawer && outputDrawerHandle) {
   let drawerTouchStartY = null;
 
@@ -1265,8 +1273,20 @@ if (outputDrawer && outputDrawerHandle) {
   window.addEventListener("resize", updateOutputDrawerHeight);
 
   outputDrawerHandle.addEventListener("click", () => {
-    setOutputDrawerOpen(!outputDrawer.classList.contains("open"));
+    if (outputDrawer.classList.contains("fullscreen")) {
+      setOutputDrawerState("open");
+    } else if (outputDrawer.classList.contains("open")) {
+      setOutputDrawerState("fullscreen");
+    } else {
+      setOutputDrawerState("open");
+    }
   });
+
+  if (closeOutputDrawerBtn) {
+    closeOutputDrawerBtn.addEventListener("click", () => {
+      setOutputDrawerState("closed");
+    });
+  }
 
   outputDrawerHandle.addEventListener("touchstart", event => {
     drawerTouchStartY = event.touches[0].clientY;
@@ -1279,9 +1299,9 @@ if (outputDrawer && outputDrawerHandle) {
     const diffY = touchEndY - drawerTouchStartY;
 
     if (diffY < -35) {
-      setOutputDrawerOpen(true);
+      setOutputDrawerState(outputDrawer.classList.contains("open") ? "fullscreen" : "open");
     } else if (diffY > 35) {
-      setOutputDrawerOpen(false);
+      setOutputDrawerState("closed");
     }
 
     drawerTouchStartY = null;
