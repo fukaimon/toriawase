@@ -1,4 +1,4 @@
-const CACHE_NAME = "toriawase-v7";
+const CACHE_NAME = "toriawase-v9";
 const OFFLINE_URL = new URL("./index.html", self.registration.scope).href;
 const APP_ASSETS = [
   "./",
