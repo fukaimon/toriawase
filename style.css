@@ -45,7 +45,7 @@ h1 {
 
 #meta {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   padding: 12px;
   border: 1px solid #d7e2d8;
   border-radius: 8px;
@@ -53,14 +53,18 @@ h1 {
 }
 
 .meta-row--datetime {
+  display: grid;
+  justify-items: start;
+  gap: inherit;
+}
+
+.meta-field {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-start;
   gap: 8px;
 }
 
-.meta-row--datetime input {
+.meta-field input {
   flex: 0 0 auto;
 }
 
@@ -334,12 +338,12 @@ button:active {
 
   #meta > div {
     display: grid;
-    gap: 6px;
+    gap: inherit;
   }
 
   #meta > .meta-row--datetime {
-    display: flex;
-    justify-content: flex-start;
+    display: grid;
+    justify-items: start;
   }
 
   #birdSearch {
