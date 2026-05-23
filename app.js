@@ -1228,6 +1228,10 @@ const outputDrawerHandle = document.getElementById("outputDrawerHandle");
 const closeOutputDrawerBtn = document.getElementById("closeOutputDrawerBtn");
 const birdSearchInput = document.getElementById("birdSearchInput");
 const clearBirdSearchBtn = document.getElementById("clearBirdSearchBtn");
+const clearAllBtn = document.getElementById("clearAllBtn");
+const allBirdItems = [];
+let searchResultsView = null;
+let familyOpenStatesBeforeSearch = null;
 
 function updateOutputDrawerHeight() {
   if (!outputDrawer) return;
@@ -1239,18 +1243,16 @@ function getPageBottomGap() {
   return scrollingElement.scrollHeight - window.innerHeight - window.scrollY;
 }
 
-function setOutputDrawerState(state) {
+function setOutputDrawerOpen(isOpen) {
   if (!outputDrawer || !outputDrawerHandle) return;
 
-  const isOpen = state !== "closed";
-  const wasOpen = outputDrawer.classList.contains("open") || outputDrawer.classList.contains("fullscreen");
+  const wasOpen = outputDrawer.classList.contains("fullscreen");
   const bottomGapBeforeOpen = getPageBottomGap();
   const newlyCoveredHeight = Math.max(0, outputDrawer.offsetHeight - outputDrawerHandle.offsetHeight);
 
-  outputDrawer.classList.toggle("open", state === "open");
-  outputDrawer.classList.toggle("fullscreen", state === "fullscreen");
+  outputDrawer.classList.toggle("fullscreen", isOpen);
   document.body.classList.toggle("output-drawer-is-open", isOpen);
-  document.body.classList.toggle("output-drawer-is-fullscreen", state === "fullscreen");
+  document.body.classList.toggle("output-drawer-is-fullscreen", isOpen);
   updateOutputDrawerHeight();
   outputDrawerHandle.setAttribute("aria-expanded", String(isOpen));
 
@@ -1262,10 +1264,6 @@ function setOutputDrawerState(state) {
   }
 }
 
-function setOutputDrawerOpen(isOpen) {
-  setOutputDrawerState(isOpen ? "open" : "closed");
-}
-
 if (outputDrawer && outputDrawerHandle) {
   let drawerTouchStartY = null;
 
@@ -1273,18 +1271,12 @@ if (outputDrawer && outputDrawerHandle) {
   window.addEventListener("resize", updateOutputDrawerHeight);
 
   outputDrawerHandle.addEventListener("click", () => {
-    if (outputDrawer.classList.contains("fullscreen")) {
-      setOutputDrawerState("open");
-    } else if (outputDrawer.classList.contains("open")) {
-      setOutputDrawerState("fullscreen");
-    } else {
-      setOutputDrawerState("open");
-    }
+    setOutputDrawerOpen(!outputDrawer.classList.contains("fullscreen"));
   });
 
   if (closeOutputDrawerBtn) {
     closeOutputDrawerBtn.addEventListener("click", () => {
-      setOutputDrawerState("closed");
+      setOutputDrawerOpen(false);
     });
   }
 
@@ -1299,9 +1291,9 @@ if (outputDrawer && outputDrawerHandle) {
     const diffY = touchEndY - drawerTouchStartY;
 
     if (diffY < -35) {
-      setOutputDrawerState(outputDrawer.classList.contains("open") ? "fullscreen" : "open");
+      setOutputDrawerOpen(true);
     } else if (diffY > 35) {
-      setOutputDrawerState("closed");
+      setOutputDrawerOpen(false);
     }
 
     drawerTouchStartY = null;
@@ -1310,9 +1302,133 @@ if (outputDrawer && outputDrawerHandle) {
 
 function normalizeSearchText(text) {
   return text
+    .normalize("NFKC")
     .trim()
     .toLowerCase()
+    .replace(/\s+/g, "")
     .replace(/[ぁ-ん]/g, char => String.fromCharCode(char.charCodeAt(0) + 0x60));
+}
+
+function getNormalizedTextMap(text) {
+  const normalizedChars = [];
+  const originalIndexes = [];
+
+  Array.from(text).forEach((char, index) => {
+    const normalizedChar = normalizeSearchText(char);
+    if (!normalizedChar) return;
+
+    Array.from(normalizedChar).forEach(charPart => {
+      normalizedChars.push(charPart);
+      originalIndexes.push(index);
+    });
+  });
+
+  return {
+    text: normalizedChars.join(""),
+    originalIndexes
+  };
+}
+
+function renderBirdLabel(item, keyword = "") {
+  const label = item.querySelector("label");
+  const birdName = item.dataset.birdName || "";
+  if (!label) return;
+
+  label.textContent = " " + birdName + " ";
+  if (!keyword) return;
+
+  const normalizedMap = getNormalizedTextMap(birdName);
+  const matchStart = normalizedMap.text.indexOf(keyword);
+  if (matchStart === -1) return;
+
+  const matchEnd = matchStart + keyword.length - 1;
+  const originalStart = normalizedMap.originalIndexes[matchStart];
+  const originalEnd = normalizedMap.originalIndexes[matchEnd] + 1;
+
+  label.textContent = " ";
+  label.append(
+    document.createTextNode(birdName.slice(0, originalStart))
+  );
+
+  const mark = document.createElement("mark");
+  mark.textContent = birdName.slice(originalStart, originalEnd);
+  label.append(mark);
+
+  label.append(
+    document.createTextNode(birdName.slice(originalEnd) + " ")
+  );
+}
+
+function createExactMatchClone(item, keyword) {
+  const birdId = item.dataset.birdId;
+  const checkbox = item.querySelector('input[type="checkbox"]');
+  const countInput = item.querySelector('input[type="text"]');
+  const clone = document.createElement("li");
+  clone.dataset.birdName = item.dataset.birdName || "";
+  clone.classList.add("search-hit", "search-exact-hit");
+
+  const cloneCheckbox = document.createElement("input");
+  cloneCheckbox.type = "checkbox";
+  cloneCheckbox.id = `exact-bird-${birdId}`;
+  cloneCheckbox.checked = checkbox ? checkbox.checked : false;
+
+  const cloneLabel = document.createElement("label");
+  cloneLabel.htmlFor = cloneCheckbox.id;
+
+  const cloneCountInput = document.createElement("input");
+  cloneCountInput.type = "text";
+  cloneCountInput.placeholder = "数・メモ";
+  cloneCountInput.style.width = "80px";
+  cloneCountInput.dataset.birdId = birdId;
+  cloneCountInput.value = countInput ? countInput.value : "";
+
+  clone.appendChild(cloneCheckbox);
+  clone.appendChild(cloneLabel);
+  clone.appendChild(cloneCountInput);
+  renderBirdLabel(clone, keyword);
+
+  cloneCheckbox.addEventListener("change", () => {
+    if (checkbox) checkbox.checked = cloneCheckbox.checked;
+    updateOutputText();
+  });
+
+  cloneCountInput.addEventListener("input", () => {
+    if (countInput) countInput.value = cloneCountInput.value;
+    updateOutputText();
+  });
+
+  return clone;
+}
+
+function createSearchResultsView() {
+  if (searchResultsView) return searchResultsView;
+
+  const view = document.createElement("div");
+  view.classList.add("search-results-view");
+
+  const exactList = document.createElement("ul");
+  exactList.classList.add("family-list", "open", "search-results");
+  exactList.dataset.searchSection = "exactList";
+
+  const noResults = document.createElement("p");
+  noResults.classList.add("search-no-results");
+  noResults.dataset.searchSection = "noResults";
+  noResults.textContent = "一致する鳥が見つかりません。";
+
+  view.appendChild(exactList);
+  view.appendChild(noResults);
+  list.prepend(view);
+
+  searchResultsView = view;
+  return searchResultsView;
+}
+
+function resetBirdItems() {
+  allBirdItems.forEach(item => {
+    item.hidden = false;
+    item.classList.remove("search-hit", "search-exact-hit");
+    renderBirdLabel(item);
+  });
 }
 
 function filterBirdList() {
@@ -1320,7 +1436,48 @@ function filterBirdList() {
 
   const keyword = normalizeSearchText(birdSearchInput.value);
   const familyTitles = list.querySelectorAll(".family-title");
-  let firstMatchedItem = null;
+
+  if (keyword && !familyOpenStatesBeforeSearch) {
+    familyOpenStatesBeforeSearch = new Map(
+      Array.from(familyTitles).map(familyTitle => [
+        familyTitle.dataset.familyName || "",
+        familyTitle.classList.contains("open")
+      ])
+    );
+  }
+
+  resetBirdItems();
+
+  if (!keyword) {
+    if (searchResultsView) searchResultsView.hidden = true;
+
+    familyTitles.forEach(familyTitle => {
+      const familyList = familyTitle.nextElementSibling;
+      const familyName = familyTitle.dataset.familyName || "";
+      const wasOpen = familyOpenStatesBeforeSearch
+        ? familyOpenStatesBeforeSearch.get(familyName)
+        : familyTitle.classList.contains("open");
+
+      familyTitle.hidden = false;
+      familyList.hidden = false;
+      familyList.classList.remove("search-results");
+      familyTitle.classList.toggle("open", Boolean(wasOpen));
+      familyList.classList.toggle("open", Boolean(wasOpen));
+      familyTitle.textContent = familyName;
+    });
+
+    familyOpenStatesBeforeSearch = null;
+    return;
+  }
+
+  const view = createSearchResultsView();
+  const exactList = view.querySelector('[data-search-section="exactList"]');
+  const noResults = view.querySelector('[data-search-section="noResults"]');
+  const exactMatches = [];
+  let matchTotal = 0;
+
+  view.hidden = false;
+  exactList.textContent = "";
 
   familyTitles.forEach(familyTitle => {
     const familyList = familyTitle.nextElementSibling;
@@ -1329,28 +1486,32 @@ function filterBirdList() {
 
     familyList.querySelectorAll("li").forEach(item => {
       const birdName = item.dataset.birdName || "";
-      const birdMatches = !keyword || normalizeSearchText(birdName).includes(keyword);
+      const normalizedBirdName = normalizeSearchText(birdName);
+      const isMatch = normalizedBirdName.includes(keyword);
+      const isExactMatch = normalizedBirdName === keyword;
 
-      item.hidden = !birdMatches;
-      item.classList.toggle("search-hit", Boolean(keyword && birdMatches));
+      item.hidden = !isMatch;
+      item.classList.toggle("search-hit", isMatch);
+      renderBirdLabel(item, isMatch ? keyword : "");
 
-      if (keyword && birdMatches) {
-        matchCount++;
-        if (!firstMatchedItem) firstMatchedItem = item;
-      }
+      if (isMatch) matchCount++;
+      if (isExactMatch) exactMatches.push(item);
     });
 
-    familyTitle.hidden = keyword ? matchCount === 0 : false;
-    familyList.hidden = keyword ? matchCount === 0 : false;
-    familyList.classList.toggle("search-results", Boolean(keyword && matchCount > 0));
-    familyTitle.textContent = keyword && matchCount > 0
-      ? `${familyName}（${matchCount}）`
-      : familyName;
+    matchTotal += matchCount;
+    familyTitle.hidden = matchCount === 0;
+    familyList.hidden = matchCount === 0;
+    familyList.classList.toggle("search-results", matchCount > 0);
+    familyTitle.classList.toggle("open", matchCount > 0);
+    familyList.classList.toggle("open", matchCount > 0);
+    familyTitle.textContent = matchCount > 0 ? `${familyName}（${matchCount}）` : familyName;
   });
 
-  if (firstMatchedItem) {
-    firstMatchedItem.scrollIntoView({ block: "center", behavior: "smooth" });
-  }
+  exactMatches.forEach(item => {
+    exactList.appendChild(createExactMatchClone(item, keyword));
+  });
+  exactList.hidden = exactMatches.length === 0;
+  noResults.hidden = matchTotal > 0;
 }
 
 birds.forEach(familyGroup => {
@@ -1375,6 +1536,7 @@ birds.forEach(familyGroup => {
 
   familyGroup.species.forEach(bird => {
     const li = document.createElement("li");
+    li.dataset.birdId = String(bird.id);
     li.dataset.birdName = bird.name;
 
     const checkbox = document.createElement("input");
@@ -1391,14 +1553,24 @@ birds.forEach(familyGroup => {
     countInput.style.width = "80px";
     countInput.dataset.birdId = bird.id;
 
-    checkbox.addEventListener("change", updateOutputText);
-    countInput.addEventListener("input", updateOutputText);
+    checkbox.addEventListener("change", () => {
+      const exactCheckbox = document.getElementById(`exact-bird-${bird.id}`);
+      if (exactCheckbox) exactCheckbox.checked = checkbox.checked;
+      updateOutputText();
+    });
+
+    countInput.addEventListener("input", () => {
+      const exactCountInput = document.querySelector(`.search-results-view input[type="text"][data-bird-id="${bird.id}"]`);
+      if (exactCountInput) exactCountInput.value = countInput.value;
+      updateOutputText();
+    });
 
     li.appendChild(checkbox);
     li.appendChild(label);
     li.appendChild(countInput);
 
     familyList.appendChild(li);
+    allBirdItems.push(li);
   });
 });
 
@@ -1515,7 +1687,7 @@ function updateOutputText() {
 }
 
 function collectCurrentDraftData() {
-  let record = {
+  const record = {
     date: obsDate.value,
     startTime: obsStartTime.value,
     endTime: obsEndTime.value,
@@ -1608,12 +1780,6 @@ function restoreTodayDraft() {
   input.addEventListener("input", updateOutputText);
   input.addEventListener("change", updateOutputText);
 });
-// ===== ボタンにイベントをつける（←これを一番下に！）=====
-const exportTextBtn = document.getElementById("exportTextBtn");
-
-if (exportTextBtn) {
-  exportTextBtn.addEventListener("click", exportText);
-}
 
 // ===== コピー機能 =====
 const copyBtn = document.getElementById("copyBtn");
@@ -1656,6 +1822,10 @@ function clearAllChecks() {
   });
 
   updateOutputText();
+}
+
+if (clearAllBtn) {
+  clearAllBtn.addEventListener("click", clearAllChecks);
 }
 
 if ("serviceWorker" in navigator) {
