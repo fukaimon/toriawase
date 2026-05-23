@@ -1824,8 +1824,23 @@ function clearAllChecks() {
   updateOutputText();
 }
 
+function clearAllRecordData() {
+  [
+    obsDate,
+    obsStartTime,
+    obsEndTime,
+    obsPlace,
+    obsWeather,
+    obsObserver
+  ].forEach(input => {
+    input.value = "";
+  });
+
+  clearAllChecks();
+}
+
 if (clearAllBtn) {
-  clearAllBtn.addEventListener("click", clearAllChecks);
+  clearAllBtn.addEventListener("click", clearAllRecordData);
 }
 
 if ("serviceWorker" in navigator) {
